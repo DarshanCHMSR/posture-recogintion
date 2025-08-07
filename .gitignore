@@ -12,4 +12,3 @@ email_test_*
 # Email system files (SMTP only)
 email_config_backup*
 smtp_test_output*
-#update
