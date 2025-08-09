@@ -2,11 +2,11 @@
   "smtp": {
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
-    "smtp_username": "chdarshan99@gmail.com",
-    "smtp_password": "zfql rlnx xvyb vkoa",
+    "smtp_username": "sandeepjs9148@gmail.com",
+    "smtp_password": "kpju lvfz jpps npbx",
     "use_tls": true
   },
-  "recipient_email": "chdarshan562@gmail.com",
+  "recipient_email": "sandeepjs9148@gmail.com",
   "sender_name": "AI Posture Monitor - Elderly Care System",
   "monitoring_settings": {
     "subject_name": "darshan",

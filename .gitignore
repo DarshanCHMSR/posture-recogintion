@@ -3,7 +3,8 @@ output*
 *.pyc
 myevn
 ./myevn
-
+don
+./don
 # Test outputs and logs
 test_output*
 *.log
