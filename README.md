@@ -15,8 +15,9 @@ This project, `ai_posture_monitor`, is designed to be an innovative and cost-eff
 ## Key Functionalities
 
 * **Real-time Activity Monitoring:** Continuously tracks and analyzes movements, providing a comprehensive view of activity patterns.
-* **Pose Detection:** Accurately identifies key postures such as standing, sitting, and lying down.
-* **Fall Detection:** Effectively detects falls with minimal false alarms, offering peace of mind.
+* **Pose Detection:** Accurately identifies key postures such as standing, sitting, lying down, and walking.
+* **Fall Detection:** Detects sudden falls through rapid vertical movement analysis and transition to lying position, providing critical safety alerts.
+* **Walking Detection:** Recognizes walking patterns through frame-to-frame movement analysis of key joints.
 * **Fuzzy Logic Analysis:** Employs fuzzy logic for accurate interpretation of movement data, enhancing the system's reliability.
 * **User-Centric Design:** Specifically designed for the needs of elderly individuals living alone, providing a user-friendly experience.
 * **Environmental Adaptability:** Functions effectively in well-lit indoor settings, suitable for typical home environments.
@@ -218,14 +219,15 @@ The repository includes a set of final visualizations produced by the monitoring
 Files (stored in `pose_graphs/`):
 
 - `comprehensive_dashboard_*.png` – A multi-panel dashboard combining timeline, distribution, confidence and health metrics.
-- `pose_distribution_*.png` – Pie charts showing frame-count and time-based distribution across poses (standing, walking, sitting, lying).
+- `pose_distribution_*.png` – Pie charts showing frame-count and time-based distribution across poses (standing, walking, sitting, lying, fall).
 - `activity_heatmap_*.png` – Heatmap of activity (pose frequency) across the session timeline.
 - `pose_timeline_*.png` – Time-series scatter/timeline of detected poses with color coding and confidence overlay.
 
 Quick notes on interpreting the graphs:
 
-- Timeline: y-axis shows pose categories (Unknown → Lying → Sitting → Walking → Standing); x-axis is time. Use this to spot when walking occurs vs. static poses.
-- Distribution Pie: helps quickly assess how sedentary or active a session was (walking and standing count as active time).
+- Timeline: y-axis shows pose categories (Unknown → Fall → Lying → Sitting → Walking → Standing); x-axis is time. Fall incidents appear in crimson red for immediate identification.
+- Distribution Pie: helps quickly assess how sedentary or active a session was (walking and standing count as active time). Fall incidents are tracked separately as emergency events.
+- Safety Monitoring: Fall detection appears prominently in the dashboard with emergency color coding (🚨 crimson red) and dedicated safety status metrics.
 - Confidence Trend: use the confidence plot to verify detection stability — dips can indicate occlusion or poor lighting.
 - Health Metrics: the dashboard calculates active vs sedentary time, transitions, and average detection confidence.
 

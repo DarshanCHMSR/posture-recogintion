@@ -1,6 +1,6 @@
 def get_groundtruth_from_image_name(image_name=''):
     #dic = {'stand':'stand', 'squat':'squat', 'sit':'sit', 'lying':'lie', 'lie':'lie', 'bend':'stand', 'fall':'lie', 'climb':'stand', 'get':'sit'}
-    dic = {'stand':'stand', 'squat':'stand', 'sit':'sit', 'lying':'lie', 'lie':'lie', 'bend':'stand', 'fall':'lie', 'climb':'stand', 'get':'sit', 'walk':'walking'}
+    dic = {'stand':'stand', 'squat':'stand', 'sit':'sit', 'lying':'lie', 'lie':'lie', 'bend':'stand', 'fall':'fall', 'climb':'stand', 'get':'sit', 'walk':'walking'}
     if image_name != '':
         for x in dic:
             if image_name.startswith(x):
@@ -8,13 +8,16 @@ def get_groundtruth_from_image_name(image_name=''):
     return None
 
 def get_attr_of_features():
-    return ['image_name', 'is_upright', 'percent_upright', 'stand_left', 'stand_right', 'percent_stand_left', 'percent_stand_right', 'sit_left', 'sit_right', 'percent_sit_left', 'percent_sit_right', 'lie_left', 'lie_right', 'walking']
+    return ['image_name', 'is_upright', 'percent_upright', 'stand_left', 'stand_right', 'percent_stand_left', 'percent_stand_right', 'sit_left', 'sit_right', 'percent_sit_left', 'percent_sit_right', 'lie_left', 'lie_right', 'walking', 'fall']
 
 def predict_pose(features=[], features_df=None):
     # Use features list to make prediction
     label = None
 
     def pred_stand_to_lie(feature_list):
+        # Fall detection logic: if fall feature is set, return 'fall' (highest priority)
+        if 'fall' in feature_list and feature_list['fall'] == 'fall':
+            return 'fall'
         # Walking detection logic: if walking feature is set, return 'walking'
         if 'walking' in feature_list and feature_list['walking'] == 'walking':
             return 'walking'
@@ -100,8 +103,11 @@ def predict_pose(features=[], features_df=None):
         feature_list = features_df
 
     if feature_list is not None:
-        # Walking detection has highest priority
-        if 'walking' in feature_list and feature_list['walking'] == 'walking':
+        # Fall detection has highest priority (emergency state)
+        if 'fall' in feature_list and feature_list['fall'] == 'fall':
+            label = 'fall'
+        # Walking detection has second priority
+        elif 'walking' in feature_list and feature_list['walking'] == 'walking':
             label = 'walking'
         elif feature_list['is_upright']:
             # stand or sit

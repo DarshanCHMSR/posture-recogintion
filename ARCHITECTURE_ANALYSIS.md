@@ -2,7 +2,7 @@
 
 ## 📊 **Current Enhanced Architecture: Multi-Modal AI System with Real-Time Processing**
 
-After implementing significant enhancements, this system now combines **MediaPipe pose estimation**, **SMTP email notifications**, **real-time graphing**, and **enhanced detection algorithms**. The architecture focuses on real-world deployment with elderly care monitoring, featuring improved accuracy, comprehensive reporting, and visual analytics.
+After implementing significant enhancements, this system now combines **MediaPipe pose estimation**, **SMTP email notifications**, **real-time graphing**, and **enhanced detection algorithms**. The architecture focuses on real-world deployment with elderly care monitoring, featuring improved accuracy, comprehensive reporting, visual analytics, and critical safety features including **fall detection** and **walking recognition**.
 
 ---
 
@@ -15,16 +15,18 @@ After implementing significant enhancements, this system now combines **MediaPip
 ├─────────────────────────────────────────┤
 │ • MediaPipe Pose Estimation (Direct)
 │ • Real-time Camera Feed Processing
-│ • Enhanced Sitting Detection Algorithm  │
-│ • Multi-criteria Pose Classification    │
+│ • Enhanced Pose Detection Algorithms    │
+│ • Multi-criteria Classification Engine  │
 └─────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────┐
 │         INTELLIGENT FEATURE ENGINE      │
 ├─────────────────────────────────────────┤
 │ • 33 Body Landmarks (3D coordinates)
-│ • Joint Angle Analysis & Ratios
-│ • Enhanced Sitting Detection Logic      │
+│ • Joint Movement Analysis & Ratios
+│ • Fall Detection (Emergency Priority)   │
+│ • Walking Detection (Motion Analysis)   │
+│ • Enhanced Static Pose Detection        │
 │ • Confidence Scoring & Validation       │
 └─────────────────────────────────────────┘
                     ↓
@@ -33,6 +35,8 @@ After implementing significant enhancements, this system now combines **MediaPip
 ├─────────────────────────────────────────┤
 │ • Pose Statistics Tracking
 │ • Session Duration Monitoring
+│ • Fall Alert System (Emergency)         │
+│ • Movement Pattern Recognition          │
 │ • Transition Detection & Counting       │  
 │ • Confidence-based Validation           │
 └─────────────────────────────────────────┘
@@ -40,10 +44,11 @@ After implementing significant enhancements, this system now combines **MediaPip
 ┌─────────────────────────────────────────┐
 │        MULTI-MODAL OUTPUT SYSTEM       │
 ├─────────────────────────────────────────┤
+│ • Emergency Fall Alerts (High Priority)
 │ • SMTP Email Notifications
 │ • Real-time Graph Generation
 │ • Visual Pose Overlay Display           │
-│ • Comprehensive Analytics Reports       │
+│ • Safety & Health Analytics Reports     │
 └─────────────────────────────────────────┘
 ```
 
@@ -224,14 +229,16 @@ class EnhancedPoseGraphGenerator:
 The monitoring system produces a set of visual outputs that summarize pose detection across a session. These are saved in the `pose_graphs/` folder. Key files include:
 
 - `comprehensive_dashboard_*.png`: Full dashboard combining timeline, distribution pie, confidence timeline, activity heatmap, and health metrics. Use this for an executive overview of a monitoring session.
-- `pose_distribution_*.png`: Pie charts showing the percentage of time spent in each pose (now includes `walking`). Helpful for quick assessment of sedentary vs active time.
+- `pose_distribution_*.png`: Pie charts showing the percentage of time spent in each pose (now includes `walking` and `fall`). Helpful for quick assessment of sedentary vs active time and safety incidents.
 - `activity_heatmap_*.png`: Time vs pose heatmap that highlights dense activity periods and transitions.
-- `pose_timeline_*.png` or `pose_timeline_*`: Time-series scatter plot that marks each detected pose over time (y-axis uses the ordering Unknown → Lying → Sitting → Walking → Standing).
+- `pose_timeline_*.png` or `pose_timeline_*`: Time-series scatter plot that marks each detected pose over time (y-axis uses the ordering Unknown → Fall → Lying → Sitting → Walking → Standing).
 
 Interpretation tips:
 
-- Check `pose_timeline` first to find when walking occurs and how it relates to standing or sitting periods.
-- Use `pose_distribution` and health metrics on the dashboard to quantify active vs sedentary behaviour.
+- Check `pose_timeline` first to identify any fall incidents (crimson red points at bottom) and their relationship to other activities.
+- Fall detection appears with emergency color coding (🚨) and highest visual priority for immediate identification.
+- Use `pose_distribution` and health metrics on the dashboard to quantify active vs sedentary behaviour and track safety status.
+- Safety monitoring includes dedicated fall incident tracking with count and duration metrics.
 - If confidence drops in the `confidence timeline`, inspect frames around the drop for occlusion or lighting issues.
 
 These graphs are automatically generated by `EnhancedPoseGraphGenerator.create_comprehensive_report()` and are included in the project as examples for reference.

@@ -235,6 +235,39 @@ def get_features(landmarks_3d, image_name=None, model=2, return_keypoints=None, 
         avg_movement = total_movement / len(moving_joints)
         return avg_movement > movement_threshold
 
+    def is_fall(current_landmarks, previous_landmarks=None, fall_threshold=0.15):
+        """
+        Detect a fall by analyzing rapid vertical movement and transition to lying position.
+        Returns True if fall is detected, else False.
+        """
+        if previous_landmarks is None:
+            return False  # Can't detect fall without previous frame
+            
+        # Key joints for fall detection: head, shoulders, hips
+        fall_joints = ['left shoulder', 'right shoulder', 'left hip', 'right hip']
+        
+        # Calculate vertical movement (y-axis change)
+        total_vertical_movement = 0
+        for joint in fall_joints:
+            idx = landmark_dict_flipped[joint]
+            prev_y = previous_landmarks[idx][1]  # Y coordinate
+            curr_y = current_landmarks[idx][1]   # Y coordinate
+            # Positive change means moving down (falling)
+            vertical_movement = curr_y - prev_y
+            total_vertical_movement += max(0, vertical_movement)  # Only count downward movement
+        
+        avg_vertical_movement = total_vertical_movement / len(fall_joints)
+        
+        # Check if current pose indicates lying (horizontal orientation)
+        is_currently_lying = is_lie()
+        lying_score = sum([1 for x in is_currently_lying if x == 'lying'])
+        
+        # Fall detected if significant downward movement AND transition to lying
+        rapid_descent = avg_vertical_movement > fall_threshold
+        lying_transition = lying_score >= 1  # At least one leg indicates lying
+        
+        return rapid_descent and lying_transition
+
     landmark_dict = pose_landmarks()
     landmark_dict_flipped = {v: k for k, v in landmark_dict.items()}
     # print(landmark_dict_flipped)
@@ -636,6 +669,10 @@ def get_features(landmarks_3d, image_name=None, model=2, return_keypoints=None, 
     # Walking detection - use previous landmarks if provided
     walking = is_walking(landmarks_3d, previous_landmarks_3d) if previous_landmarks_3d is not None else False
     return_list.append('walking' if walking else 'not_walking')
+    
+    # Fall detection - use previous landmarks if provided
+    fall = is_fall(landmarks_3d, previous_landmarks_3d) if previous_landmarks_3d is not None else False
+    return_list.append('fall' if fall else 'not_fall')
 
     keypoint_focus = {}
     if return_keypoints is not None:

@@ -232,10 +232,12 @@ class PostureMonitorGUI:
             f"--------------------------------\n"
         )
 
-        for pose in ['standing', 'sitting', 'lying', 'unknown']:
+        for pose in ['standing', 'walking', 'sitting', 'lying', 'fall', 'unknown']:
             p_mins = stats.get(f'{pose}_minutes', 0.0)
             p_perc = stats.get(f'{pose}_percentage', 0.0)
-            report_str += f"{pose.capitalize():<12} {p_mins:<8.1f} {p_perc:<8.1f}\n"
+            emoji = {'standing': '🧍', 'walking': '🚶', 'sitting': '💺', 'lying': '🛏️', 'fall': '🚨', 'unknown': '❓'}
+            pose_display = f"{emoji.get(pose, '')} {pose.capitalize()}"
+            report_str += f"{pose_display:<12} {p_mins:<8.1f} {p_perc:<8.1f}\n"
 
         self.stats_text.insert(tk.END, report_str)
         self.stats_text.config(state=tk.DISABLED)

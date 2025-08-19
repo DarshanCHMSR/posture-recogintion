@@ -121,8 +121,10 @@ Total Monitoring Time: {report_data.get('total_duration', 0)} minutes
 
 POSTURE ANALYSIS:
 - Standing Time: {posture_stats.get('standing_minutes', 0)} minutes ({posture_stats.get('standing_percentage', 0)}%)
+- Walking Time: {posture_stats.get('walking_minutes', 0)} minutes ({posture_stats.get('walking_percentage', 0)}%)
 - Sitting Time: {posture_stats.get('sitting_minutes', 0)} minutes ({posture_stats.get('sitting_percentage', 0)}%)
 - Lying Down Time: {posture_stats.get('lying_minutes', 0)} minutes ({posture_stats.get('lying_percentage', 0)}%)
+- Fall Incidents: {posture_stats.get('fall_minutes', 0)} minutes ({posture_stats.get('fall_percentage', 0)}%)
 - Position Transitions: {posture_stats.get('transitions', 0)}
 - Total Sedentary Time: {posture_stats.get('sedentary_minutes', 0)} minutes
 

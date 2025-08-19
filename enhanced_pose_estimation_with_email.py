@@ -1,6 +1,7 @@
 """
-Enhanced AI Posture Monitor with Improved Sitting Detection and Email Reporting
-Uses MediaPipe with enhanced detection thresholds and real-time email reporting
+Enhanced AI Posture Monitor with Walking & Fall Detection and Email Reporting
+Uses MediaPipe with enhanced detection algorithms, walking recognition, fall safety monitoring, and real-time email reporting
+Features: Standing, Sitting, Lying, Walking Detection + Emergency Fall Alerts
 """
 import cv2
 import time
@@ -46,12 +47,19 @@ class EnhancedPoseEstimationEmailReporter:
         self.walking_threshold = 0.03  # Movement threshold for walking detection
         self.walking_confirmation_frames = 5  # Frames needed to confirm walking
         
+        # Fall detection tracking
+        self.fall_detection_buffer = []
+        self.fall_threshold = 0.08  # Vertical movement threshold for fall detection
+        self.fall_confirmation_frames = 3  # Frames needed to confirm fall
+        self.recent_fall_alerts = []  # Track recent fall alerts to avoid spam
+        
         # Pose counters with detailed tracking
         self.pose_stats = {
             'standing': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'sitting': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'lying': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'walking': {'count': 0, 'duration': 0, 'confidence_scores': []},
+            'fall': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'unknown': {'count': 0, 'duration': 0, 'confidence_scores': []}
         }
         
@@ -60,7 +68,7 @@ class EnhancedPoseEstimationEmailReporter:
         self.sitting_confirmation_frames = 3     # Reduced for faster detection
         self.recent_sitting_predictions = []
         
-        print("✅ Enhanced Posture Monitor initialized with improved sitting detection")
+        print("✅ Enhanced Posture Monitor initialized with walking detection, fall alerts, and improved pose detection")
 
     def load_email_config(self, config_file):
         """Load email configuration from JSON file"""
@@ -124,15 +132,93 @@ class EnhancedPoseEstimationEmailReporter:
             print(f"⚠️ Error in walking detection: {e}")
             return False, 0.0
 
+    def detect_fall_movement(self, current_landmarks):
+        """
+        Detect fall by analyzing rapid vertical movement and transition to lying position
+        """
+        if self.previous_landmarks is None:
+            return False, 0.0
+            
+        try:
+            # Key joints for fall detection: shoulders and hips
+            key_joints = [11, 12, 23, 24]  # left shoulder, right shoulder, left hip, right hip
+            
+            total_vertical_movement = 0.0
+            joint_count = 0
+            
+            for joint_idx in key_joints:
+                if joint_idx < len(current_landmarks.landmark) and joint_idx < len(self.previous_landmarks.landmark):
+                    curr = current_landmarks.landmark[joint_idx]
+                    prev = self.previous_landmarks.landmark[joint_idx]
+                    
+                    # Calculate vertical movement (y coordinate change, positive = downward)
+                    vertical_movement = curr.y - prev.y
+                    # Only count significant downward movement
+                    if vertical_movement > 0:
+                        total_vertical_movement += vertical_movement
+                        joint_count += 1
+            
+            # Calculate average vertical movement
+            avg_vertical_movement = total_vertical_movement / max(joint_count, 1)
+            
+            # Add to fall detection buffer
+            self.fall_detection_buffer.append(avg_vertical_movement)
+            if len(self.fall_detection_buffer) > self.fall_confirmation_frames:
+                self.fall_detection_buffer.pop(0)
+            
+            # Check if recent movements indicate a fall
+            recent_avg_fall_movement = sum(self.fall_detection_buffer) / len(self.fall_detection_buffer)
+            is_fall = recent_avg_fall_movement > self.fall_threshold and len(self.fall_detection_buffer) >= 2
+            
+            # Calculate confidence based on movement magnitude
+            fall_confidence = min(recent_avg_fall_movement / self.fall_threshold, 1.0) if is_fall else 0.0
+            
+            # Additional check: is person now in lying position?
+            landmarks = current_landmarks.landmark
+            left_shoulder = landmarks[11]
+            right_shoulder = landmarks[12]
+            left_hip = landmarks[23]
+            right_hip = landmarks[24]
+            
+            avg_shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
+            avg_hip_y = (left_hip.y + right_hip.y) / 2
+            
+            # If shoulders and hips are at similar height, likely lying down
+            lying_indicator = abs(avg_shoulder_y - avg_hip_y) < 0.15
+            
+            # Fall confidence boost if also in lying position
+            if lying_indicator and is_fall:
+                fall_confidence *= 1.5
+                fall_confidence = min(fall_confidence, 1.0)
+            
+            return is_fall, fall_confidence
+            
+        except Exception as e:
+            print(f"⚠️ Error in fall detection: {e}")
+            return False, 0.0
+
     def enhanced_pose_detection(self, pose_landmarks, frame_confidence):
         """
-        Enhanced pose detection with walking, sitting, standing, and lying detection
+        Enhanced pose detection with fall, walking, sitting, standing, and lying detection
         """
         if not pose_landmarks:
             return "unknown", 0.0
             
         try:
-            # First check for walking movement
+            # First check for fall (highest priority - emergency state)
+            is_fall, fall_confidence = self.detect_fall_movement(pose_landmarks)
+            
+            # If fall is detected with high confidence, return fall immediately
+            if is_fall and fall_confidence > 0.6:
+                # Add to recent fall alerts to track emergency events
+                current_time = datetime.now()
+                self.recent_fall_alerts.append(current_time)
+                # Keep only recent alerts (last 30 seconds)
+                self.recent_fall_alerts = [t for t in self.recent_fall_alerts if (current_time - t).seconds < 30]
+                print(f"🚨 FALL DETECTED! Confidence: {fall_confidence:.2f}")
+                return "fall", fall_confidence
+            
+            # Second check for walking movement
             is_walking, walking_confidence = self.detect_walking_movement(pose_landmarks)
             
             # If walking is detected with high confidence, return walking
@@ -237,7 +323,7 @@ class EnhancedPoseEstimationEmailReporter:
             return "unknown", 0.0
 
     def process_frame_with_enhanced_detection(self, frame):
-        """Process frame with enhanced sitting detection"""
+        """Process frame with enhanced pose detection including walking and fall detection"""
         try:
             # Use MediaPipe for initial pose detection
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -247,36 +333,13 @@ class EnhancedPoseEstimationEmailReporter:
                 # Get frame confidence from MediaPipe
                 frame_confidence = 0.8  # Default confidence
                 
-                # Enhanced pose classification
+                # Enhanced pose classification (includes walking and fall detection)
                 pose, confidence = self.enhanced_pose_detection(results.pose_landmarks, frame_confidence)
                 
-                # Sitting confirmation logic
-                if pose == "sitting":
-                    self.recent_sitting_predictions.append(1)
-                else:
-                    self.recent_sitting_predictions.append(0)
-                    
-                # Keep only recent predictions for confirmation
-                if len(self.recent_sitting_predictions) > self.sitting_confirmation_frames:
-                    self.recent_sitting_predictions.pop(0)
-                
-                # Confirm sitting if consistently detected (more lenient)
-                sitting_ratio = sum(self.recent_sitting_predictions) / len(self.recent_sitting_predictions)
-                if sitting_ratio >= 0.5 and pose == "sitting":  # More lenient confirmation
-                    final_pose = "sitting"
-                    final_confidence = confidence
-                elif sitting_ratio < 0.4 and pose != "sitting":
-                    final_pose = pose
-                    final_confidence = confidence
-                else:
-                    # Use original prediction but adjust confidence
-                    final_pose = pose
-                    final_confidence = confidence * 0.8  # Slightly reduce confidence for uncertain cases
-                
                 # Update statistics
-                self.update_pose_statistics(final_pose, final_confidence)
+                self.update_pose_statistics(pose, confidence)
                 
-                return final_pose, final_confidence, results.pose_landmarks
+                return pose, confidence, results.pose_landmarks
             else:
                 return "unknown", 0.0, None
                 
@@ -357,29 +420,44 @@ class EnhancedPoseEstimationEmailReporter:
 │ Pose        │ Count    │ Time (min) │ Percentage   │
 ├─────────────┼──────────┼────────────┼──────────────┤
 │ 🧍 Standing │ {stats['standing_count']:8} │ {stats['standing_minutes']:10.1f} │ {stats['standing_percentage']:11.1f}% │
-│ 💺 Sitting  │ {stats['sitting_count']:8} │ {stats['sitting_minutes']:10.1f} │ {stats['sitting_percentage']:11.1f}% │
+│ � Walking  │ {stats['walking_count']:8} │ {stats['walking_minutes']:10.1f} │ {stats['walking_percentage']:11.1f}% │
+│ �💺 Sitting  │ {stats['sitting_count']:8} │ {stats['sitting_minutes']:10.1f} │ {stats['sitting_percentage']:11.1f}% │
 │ 🛏️ Lying    │ {stats['lying_count']:8} │ {stats['lying_minutes']:10.1f} │ {stats['lying_percentage']:11.1f}% │
+│ 🚨 Fall     │ {stats['fall_count']:8} │ {stats['fall_minutes']:10.1f} │ {stats['fall_percentage']:11.1f}% │
 │ ❓ Unknown  │ {stats['unknown_count']:8} │ {stats['unknown_minutes']:10.1f} │ {stats['unknown_percentage']:11.1f}% │
 └─────────────┴──────────┴────────────┴──────────────┘
 
 🎯 DETECTION ACCURACY
 • Standing Detection: {stats['standing_confidence']}%
+• Walking Detection: {stats['walking_confidence']}%
 • Sitting Detection: {stats['sitting_confidence']}%
 • Lying Detection: {stats['lying_confidence']}%
+• Fall Detection: {stats['fall_confidence']}%
+
+🚨 SAFETY STATUS
+• Fall Incidents: {stats['fall_count']} events ({stats['fall_minutes']:.1f} minutes)
+• Safety Rating: {"🚨 CRITICAL - Falls Detected!" if stats['fall_count'] > 0 else "✅ SAFE - No Falls"}
 
 ⚡ ACTIVITY ANALYSIS
+• Active Time: {stats['standing_minutes'] + stats['walking_minutes']:.1f} minutes ({stats['standing_percentage'] + stats['walking_percentage']:.1f}%)
+  ├─ Standing: {stats['standing_minutes']:.1f} min
+  └─ Walking: {stats['walking_minutes']:.1f} min
 • Sedentary Time: {stats['sitting_minutes'] + stats['lying_minutes']:.1f} minutes ({stats['sitting_percentage'] + stats['lying_percentage']:.1f}%)
-• Active Time: {stats['standing_minutes']:.1f} minutes ({stats['standing_percentage']:.1f}%)
+  ├─ Sitting: {stats['sitting_minutes']:.1f} min
+  └─ Lying: {stats['lying_minutes']:.1f} min
 • Movement Transitions: {stats['transitions']} changes
 
 🔧 SYSTEM STATUS
-• Enhanced Sitting Detection: ✅ Active
+• Enhanced Pose Detection: ✅ Active (Standing, Sitting, Lying)
+• Walking Detection: ✅ Active (Motion Analysis)
+• Fall Detection: ✅ Active (Emergency Priority)
 • Email Notifications: ✅ Working
 • Confidence Threshold: {self.sitting_confidence_threshold * 100}%
 • Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 {'='*50}
 This report was generated by the Enhanced AI Posture Monitor
+Includes walking detection and fall safety monitoring.
 For any concerns, please review the detailed statistics above.
         """
         return report.strip()
@@ -388,8 +466,10 @@ For any concerns, please review the detailed statistics above.
         """Default statistics when no data is available"""
         return {
             'standing_count': 0, 'standing_percentage': 0.0, 'standing_minutes': 0.0, 'standing_confidence': 0.0,
+            'walking_count': 0, 'walking_percentage': 0.0, 'walking_minutes': 0.0, 'walking_confidence': 0.0,
             'sitting_count': 0, 'sitting_percentage': 0.0, 'sitting_minutes': 0.0, 'sitting_confidence': 0.0,
             'lying_count': 0, 'lying_percentage': 0.0, 'lying_minutes': 0.0, 'lying_confidence': 0.0,
+            'fall_count': 0, 'fall_percentage': 0.0, 'fall_minutes': 0.0, 'fall_confidence': 0.0,
             'unknown_count': 0, 'unknown_percentage': 0.0, 'unknown_minutes': 0.0, 'unknown_confidence': 0.0,
             'total_frames': 0, 'session_minutes': 0.0, 'transitions': 0, 'avg_confidence': 0.0
         }
@@ -427,7 +507,7 @@ For any concerns, please review the detailed statistics above.
                     
                     # Display current pose
                     if pose != "unknown":
-                        pose_emoji = {"standing": "🧍", "sitting": "💺", "lying": "🛏️"}.get(pose, "❓")
+                        pose_emoji = {"standing": "🧍", "sitting": "💺", "lying": "🛏️", "walking": "🚶", "fall": "🚨"}.get(pose, "❓")
                         print(f"\r{pose_emoji} Current: {pose.upper()} (confidence: {confidence:.1f}) | "
                               f"Frame: {frame_count} | "
                               f"Time: {(time.time() - start_time)/60:.1f}min", end="", flush=True)
@@ -496,10 +576,14 @@ For any concerns, please review the detailed statistics above.
                 'posture_statistics': {
                     'standing_minutes': stats['standing_minutes'],
                     'standing_percentage': stats['standing_percentage'],
+                    'walking_minutes': stats['walking_minutes'],
+                    'walking_percentage': stats['walking_percentage'],
                     'sitting_minutes': stats['sitting_minutes'],
                     'sitting_percentage': stats['sitting_percentage'],
                     'lying_minutes': stats['lying_minutes'],
                     'lying_percentage': stats['lying_percentage'],
+                    'fall_minutes': stats['fall_minutes'],
+                    'fall_percentage': stats['fall_percentage'],
                     'transitions': stats['transitions'],
                     'confidence': stats['avg_confidence']
                 },
@@ -571,10 +655,12 @@ def main():
         duration = 0.5  # 30 seconds for quick testing
         
         print(f"\n🎯 Features:")
-        print("• Enhanced sitting detection with multiple criteria")
+        print("• Enhanced pose detection (Standing, Sitting, Lying)")
+        print("• Walking detection with motion analysis")
+        print("• Fall detection with emergency alerts")
         print("• Real-time pose statistics")
         print("• Improved confidence scoring")
-        print("• Comprehensive email reporting")
+        print("• Comprehensive email reporting with safety status")
         print("• Visual feedback with enhanced accuracy")
         print(f"• Quick test duration: {duration * 60} seconds")
         
