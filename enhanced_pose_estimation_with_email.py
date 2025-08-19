@@ -40,11 +40,18 @@ class EnhancedPoseEstimationEmailReporter:
         self.session_start_time = datetime.now()
         self.monitoring_active = True
         
+        # Walking detection tracking
+        self.previous_landmarks = None
+        self.walking_movement_buffer = []
+        self.walking_threshold = 0.03  # Movement threshold for walking detection
+        self.walking_confirmation_frames = 5  # Frames needed to confirm walking
+        
         # Pose counters with detailed tracking
         self.pose_stats = {
             'standing': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'sitting': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'lying': {'count': 0, 'duration': 0, 'confidence_scores': []},
+            'walking': {'count': 0, 'duration': 0, 'confidence_scores': []},
             'unknown': {'count': 0, 'duration': 0, 'confidence_scores': []}
         }
         
@@ -68,15 +75,71 @@ class EnhancedPoseEstimationEmailReporter:
             print(f"❌ Invalid JSON in {config_file}")
             raise
 
-    def enhanced_sitting_detection(self, pose_landmarks, frame_confidence):
+    def detect_walking_movement(self, current_landmarks):
         """
-        Enhanced sitting detection with multiple criteria
+        Detect walking by analyzing frame-to-frame movement of key joints
+        """
+        if self.previous_landmarks is None:
+            self.previous_landmarks = current_landmarks
+            return False, 0.0
+            
+        try:
+            # Key joints for walking detection: hips, knees, ankles
+            key_joints = [23, 24, 25, 26, 27, 28]  # left hip, right hip, left knee, right knee, left ankle, right ankle
+            
+            total_movement = 0.0
+            joint_count = 0
+            
+            for joint_idx in key_joints:
+                if joint_idx < len(current_landmarks.landmark) and joint_idx < len(self.previous_landmarks.landmark):
+                    curr = current_landmarks.landmark[joint_idx]
+                    prev = self.previous_landmarks.landmark[joint_idx]
+                    
+                    # Calculate 2D movement (x, y coordinates)
+                    movement = ((curr.x - prev.x)**2 + (curr.y - prev.y)**2)**0.5
+                    total_movement += movement
+                    joint_count += 1
+            
+            # Calculate average movement
+            avg_movement = total_movement / joint_count if joint_count > 0 else 0.0
+            
+            # Add to movement buffer for smoothing
+            self.walking_movement_buffer.append(avg_movement)
+            if len(self.walking_movement_buffer) > self.walking_confirmation_frames:
+                self.walking_movement_buffer.pop(0)
+            
+            # Check if recent movements indicate walking
+            recent_avg_movement = sum(self.walking_movement_buffer) / len(self.walking_movement_buffer)
+            is_walking = recent_avg_movement > self.walking_threshold and len(self.walking_movement_buffer) >= 3
+            
+            # Calculate confidence based on movement consistency
+            movement_confidence = min(recent_avg_movement / self.walking_threshold, 1.0) if is_walking else 0.0
+            
+            # Update previous landmarks
+            self.previous_landmarks = current_landmarks
+            
+            return is_walking, movement_confidence
+            
+        except Exception as e:
+            print(f"⚠️ Error in walking detection: {e}")
+            return False, 0.0
+
+    def enhanced_pose_detection(self, pose_landmarks, frame_confidence):
+        """
+        Enhanced pose detection with walking, sitting, standing, and lying detection
         """
         if not pose_landmarks:
             return "unknown", 0.0
             
         try:
-            # Get key landmarks
+            # First check for walking movement
+            is_walking, walking_confidence = self.detect_walking_movement(pose_landmarks)
+            
+            # If walking is detected with high confidence, return walking
+            if is_walking and walking_confidence > 0.5:
+                return "walking", walking_confidence
+            
+            # Get key landmarks for static pose detection
             landmarks = pose_landmarks.landmark
             
             # Hip landmarks
@@ -185,7 +248,7 @@ class EnhancedPoseEstimationEmailReporter:
                 frame_confidence = 0.8  # Default confidence
                 
                 # Enhanced pose classification
-                pose, confidence = self.enhanced_sitting_detection(results.pose_landmarks, frame_confidence)
+                pose, confidence = self.enhanced_pose_detection(results.pose_landmarks, frame_confidence)
                 
                 # Sitting confirmation logic
                 if pose == "sitting":
@@ -441,7 +504,7 @@ For any concerns, please review the detailed statistics above.
                     'confidence': stats['avg_confidence']
                 },
                 'enhanced_features': {
-                    'enhanced_sitting_detection': True,
+                    'enhanced_pose_detection': True,
                     'confidence_threshold': self.sitting_confidence_threshold * 100,
                     'total_frames_analyzed': stats['total_frames'],
                     'system_status': 'Active'

@@ -44,12 +44,14 @@ class EnhancedPoseGraphGenerator:
             'standing': '#2E86AB',  # Blue
             'sitting': '#A23B72',   # Purple
             'lying': '#F18F01',     # Orange
+            'walking': '#00A300',   # Green
             'unknown': '#C73E1D'    # Red
         }
         self.pose_emojis = {
             'standing': '🧍',
             'sitting': '💺', 
             'lying': '🛏️',
+            'walking': '🚶',
             'unknown': '❓'
         }
         
@@ -144,7 +146,7 @@ class EnhancedPoseGraphGenerator:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
             
             # Convert poses to numeric for plotting
-            pose_mapping = {'standing': 3, 'sitting': 2, 'lying': 1, 'unknown': 0}
+            pose_mapping = {'standing': 4, 'walking': 3, 'sitting': 2, 'lying': 1, 'unknown': 0}
             df['pose_numeric'] = df['pose'].map(pose_mapping)
             
             # Timeline plot
@@ -159,8 +161,8 @@ class EnhancedPoseGraphGenerator:
                          fontsize=14, fontweight='bold')
             ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax1.grid(True, alpha=0.3)
-            ax1.set_yticks([0, 1, 2, 3])
-            ax1.set_yticklabels(['Unknown', 'Lying', 'Sitting', 'Standing'])
+            ax1.set_yticks([0, 1, 2, 3, 4])
+            ax1.set_yticklabels(['Unknown', 'Lying', 'Sitting', 'Walking', 'Standing'])
             
             # Pose duration bars
             pose_counts = df['pose'].value_counts()
@@ -467,7 +469,7 @@ class EnhancedPoseGraphGenerator:
             
             # 1. Pose timeline (large)
             ax1 = fig.add_subplot(gs[0, :2])
-            pose_mapping = {'standing': 3, 'sitting': 2, 'lying': 1, 'unknown': 0}
+            pose_mapping = {'standing': 4, 'walking': 3, 'sitting': 2, 'lying': 1, 'unknown': 0}
             df['pose_numeric'] = df['pose'].map(pose_mapping)
             
             for pose in df['pose'].unique():
@@ -480,8 +482,8 @@ class EnhancedPoseGraphGenerator:
             ax1.set_title('🕐 Real-time Timeline', fontweight='bold')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
-            ax1.set_yticks([0, 1, 2, 3])
-            ax1.set_yticklabels(['Unknown', 'Lying', 'Sitting', 'Standing'])
+            ax1.set_yticks([0, 1, 2, 3, 4])
+            ax1.set_yticklabels(['Unknown', 'Lying', 'Sitting', 'Walking', 'Standing'])
             
             # 2. Distribution pie
             ax2 = fig.add_subplot(gs[0, 2:])
@@ -550,16 +552,20 @@ class EnhancedPoseGraphGenerator:
             
             # Calculate health metrics
             standing_time = (pose_stats.get('standing', {}).get('count', 0) / total_frames * session_info['duration']) if total_frames > 0 else 0
+            walking_time = (pose_stats.get('walking', {}).get('count', 0) / total_frames * session_info['duration']) if total_frames > 0 else 0
             sitting_time = (pose_stats.get('sitting', {}).get('count', 0) / total_frames * session_info['duration']) if total_frames > 0 else 0
             lying_time = (pose_stats.get('lying', {}).get('count', 0) / total_frames * session_info['duration']) if total_frames > 0 else 0
             
+            active_time = standing_time + walking_time
             sedentary_time = sitting_time + lying_time
-            activity_ratio = standing_time / (standing_time + sedentary_time) if (standing_time + sedentary_time) > 0 else 0
+            activity_ratio = active_time / (active_time + sedentary_time) if (active_time + sedentary_time) > 0 else 0
             
             health_text = f"""
             🏥 HEALTH METRICS
             
-            Active Time: {standing_time:.1f} min ({(standing_time/session_info['duration']*100):.1f}%)
+            Active Time: {active_time:.1f} min ({(active_time/session_info['duration']*100):.1f}%)
+            ├─ Standing: {standing_time:.1f} min
+            ├─ Walking: {walking_time:.1f} min  
             Sedentary Time: {sedentary_time:.1f} min ({(sedentary_time/session_info['duration']*100):.1f}%)
             Activity Ratio: {activity_ratio:.2f}
             

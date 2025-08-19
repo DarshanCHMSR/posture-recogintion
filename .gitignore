@@ -1,8 +1,8 @@
 output*
 .idea/*
 *.pyc
-myevn
-./myevn
+venv
+./venv
 don
 ./don
 # Test outputs and logs

@@ -215,7 +215,26 @@ def calculate_percentage_difference(list1, list2, abs=True):
     else:
         return ((np.array(list1) - np.array(list2)) / np.array(list1)) * 100
 
-def get_features(landmarks_3d, image_name=None, model=2, return_keypoints=None):
+def get_features(landmarks_3d, image_name=None, model=2, return_keypoints=None, previous_landmarks_3d=None):
+    # --- Walking detection: calculate movement between frames (simple version) ---
+    # This requires previous frame landmarks; for now, we use a placeholder (should be integrated with video/frame sequence logic)
+    def is_walking(current_landmarks, previous_landmarks=None, movement_threshold=0.05):
+        """
+        Detect walking by measuring the average movement of hips and ankles between frames.
+        Returns True if movement exceeds threshold, else False.
+        """
+        if previous_landmarks is None:
+            return False  # Can't detect walking without previous frame
+        moving_joints = ['left hip', 'right hip', 'left ankle', 'right ankle']
+        total_movement = 0
+        for joint in moving_joints:
+            idx = landmark_dict_flipped[joint]
+            prev = np.array(previous_landmarks[idx])
+            curr = np.array(current_landmarks[idx])
+            total_movement += np.linalg.norm(curr - prev)
+        avg_movement = total_movement / len(moving_joints)
+        return avg_movement > movement_threshold
+
     landmark_dict = pose_landmarks()
     landmark_dict_flipped = {v: k for k, v in landmark_dict.items()}
     # print(landmark_dict_flipped)
@@ -614,6 +633,9 @@ def get_features(landmarks_3d, image_name=None, model=2, return_keypoints=None):
     # print('lie', is_lie())
     is_upright, percent_upright = is_upright_shoulder_gt_hip_plus()
     return_list = [image_name, is_upright, percent_upright] + list(is_stand_hip_height_gt_bone_length()) + list(is_sit()) + list(is_lie())
+    # Walking detection - use previous landmarks if provided
+    walking = is_walking(landmarks_3d, previous_landmarks_3d) if previous_landmarks_3d is not None else False
+    return_list.append('walking' if walking else 'not_walking')
 
     keypoint_focus = {}
     if return_keypoints is not None:
